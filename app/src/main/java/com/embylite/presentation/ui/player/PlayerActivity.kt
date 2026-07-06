@@ -136,8 +136,16 @@ fun PlayerScreen(itemId: String, onBack: () -> Unit) {
     val ready = state as? PlayerState.Ready
     val errorMsg = (state as? PlayerState.Error)?.message
 
-    // ExoPlayer 实例（仅 Ready 时构建）
-    val exoPlayer = remember { ExoPlayer.Builder(context).build() }
+    // ExoPlayer 实例（LoadControl 增大缓冲，避免短时长或高码率媒体加载失败）
+    val exoPlayer = remember {
+        val loadControl = com.google.android.exoplayer2.DefaultLoadControl.Builder()
+            .setBufferDurationsMs(1500, 50000, 1000, 2500)  // 最小缓冲1.5s / 最大50s / 播放回填1s / 重缓冲回填2.5s
+            .setBackBuffer(30000, true)  // 保留 30s 后向缓冲
+            .build()
+        ExoPlayer.Builder(context)
+            .setLoadControl(loadControl)
+            .build()
+    }
     // 播放状态
     var isPlaying by remember { mutableStateOf(false) }
     var isBuffering by remember { mutableStateOf(true) }
@@ -150,8 +158,20 @@ fun PlayerScreen(itemId: String, onBack: () -> Unit) {
     var controlsVisible by remember { mutableStateOf(true) }
     var isLocked by remember { mutableStateOf(false) }
     var isLandscape by remember { mutableStateOf(true) }
+    var showDiagnostic by remember { mutableStateOf(false) }
 
     val activity = context as? Activity
+
+    // 缓冲超时检测：缓冲超过 30 秒未就绪则提示
+    LaunchedEffect(isBuffering, ready?.url) {
+        if (isBuffering && ready != null && playerError == null) {
+            delay(30_000)
+            if (isBuffering && playerError == null) {
+                playerError = "缓冲超时（30秒未开始播放），请检查网络或服务器是否支持该媒体格式"
+                AppLogger.w("Player buffering timeout 30s")
+            }
+        }
+    }
 
     // 监听播放 URL 准备媒体源
     LaunchedEffect(ready?.url) {
@@ -159,19 +179,35 @@ fun PlayerScreen(itemId: String, onBack: () -> Unit) {
         if (!url.isNullOrEmpty()) {
             playerError = null
             isBuffering = true
+            // 关键修复：注入 X-Emby-Token header（某些 Emby 配置不认 api_key 参数只认 header）
+            val token = com.embylite.data.local.TokenManager.getCachedToken()
+            val headers = mutableMapOf(
+                "User-Agent" to "EmbyLite",
+                "Accept" to "*/*"
+            )
+            if (!token.isNullOrEmpty()) {
+                headers["X-Emby-Token"] = token
+                headers["X-Emby-Authorization"] =
+                    "MediaBrowser Client=\"EmbyLite\", Device=\"Android\", DeviceId=\"EmbyLite-Android-001\", Version=\"0.04\""
+            }
             val httpFactory = DefaultHttpDataSource.Factory()
                 .setAllowCrossProtocolRedirects(true)  // 关键：302 STRM 跨协议重定向
                 .setConnectTimeoutMs(15_000)
                 .setReadTimeoutMs(30_000)
                 .setUserAgent("EmbyLite")
+                .setDefaultRequestProperties(headers)
             val dataSourceFactory = DefaultDataSource.Factory(context, httpFactory)
             val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
-            val mediaItem = MediaItem.fromUri(url)
+            // 设置 MIME type hint 让 ExoPlayer 正确识别 container（mkv/ts/avi 等）
+            val mime = PlayerUtils.containerToMime(ready?.mediaSource?.Container)
+            val mediaItemBuilder = MediaItem.Builder().setUri(url)
+            if (mime != null) mediaItemBuilder.setMimeType(mime)
+            val mediaItem = mediaItemBuilder.build()
             val mediaSource: MediaSource = mediaSourceFactory.createMediaSource(mediaItem)
             exoPlayer.setMediaSource(mediaSource)
             exoPlayer.prepare()
             exoPlayer.playWhenReady = true
-            AppLogger.i("Player prepared media url=${url.take(80)}...")
+            AppLogger.i("Player prepared media url=${url.take(120)}... mime=$mime container=${ready?.mediaSource?.Container}")
         }
     }
 
@@ -272,15 +308,19 @@ fun PlayerScreen(itemId: String, onBack: () -> Unit) {
             }
         }
 
-        // 错误层
+        // 错误层（ExoPlayer 错误）
         if (playerError != null) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.7f)),
-                contentAlignment = Alignment.Center
+                    .background(Color.Black.copy(alpha = 0.85f))
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(horizontal = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Text(
                         text = "播放失败",
                         color = Color.White,
@@ -291,25 +331,55 @@ fun PlayerScreen(itemId: String, onBack: () -> Unit) {
                     Text(
                         text = playerError ?: "",
                         color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 13.sp
+                        fontSize = 13.sp,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
-                    Spacer(modifier = Modifier.size(16.dp))
-                    Surface(
-                        shape = RoundedCornerShape(24.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        onClick = {
-                            playerError = null
-                            exoPlayer.prepare()
-                            exoPlayer.playWhenReady = true
-                        }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                    Spacer(modifier = Modifier.size(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Surface(
+                            shape = RoundedCornerShape(24.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            onClick = {
+                                playerError = null
+                                exoPlayer.prepare()
+                                exoPlayer.playWhenReady = true
+                            }
                         ) {
-                            Icon(Icons.Default.Replay, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("重试", color = Color.White)
+                            Row(
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Replay, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("重试", color = Color.White)
+                            }
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(24.dp),
+                            color = Color.White.copy(alpha = 0.15f),
+                            onClick = { showDiagnostic = !showDiagnostic }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(if (showDiagnostic) "隐藏详情" else "查看详情", color = Color.White, fontSize = 13.sp)
+                            }
+                        }
+                    }
+                    if (showDiagnostic && ready != null) {
+                        Spacer(modifier = Modifier.size(12.dp))
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color.Black.copy(alpha = 0.5f)
+                        ) {
+                            Text(
+                                text = PlayerUtils.buildDiagnosticInfo(ready.itemId, ready.mediaSource, ready.url),
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 11.sp,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                modifier = Modifier.padding(12.dp)
+                            )
                         }
                     }
                 }
@@ -332,13 +402,15 @@ fun PlayerScreen(itemId: String, onBack: () -> Unit) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.85f)),
-                contentAlignment = Alignment.Center
+                    .background(Color.Black.copy(alpha = 0.85f))
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    modifier = Modifier.align(Alignment.Center).padding(horizontal = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Text("无法播放", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.size(8.dp))
-                    Text(errorMsg, color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
+                    Text(errorMsg, color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     Spacer(modifier = Modifier.size(16.dp))
                     Surface(
                         shape = RoundedCornerShape(24.dp),

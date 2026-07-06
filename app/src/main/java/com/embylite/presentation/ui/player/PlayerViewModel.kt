@@ -20,7 +20,8 @@ sealed class PlayerState {
     data class Ready(
         val url: String,
         val mediaSource: MediaSource?,
-        val title: String
+        val title: String,
+        val itemId: String
     ) : PlayerState()
     data class Error(val message: String) : PlayerState()
 }
@@ -49,15 +50,18 @@ class PlayerViewModel : ViewModel() {
                 val result = withContext(Dispatchers.IO) { repo.getPlaybackInfo(itemId, userId) }
                 result.onSuccess { sources ->
                     AppLogger.i("Player got ${sources.size} media sources")
+                    sources.forEachIndexed { i, s ->
+                        AppLogger.i("  source[$i] id=${s.Id} name=${s.Name} container=${s.Container} directStream=${s.SupportsDirectStream} directPlay=${s.SupportsDirectPlay} hasDirectUrl=${!s.DirectStreamUrl.isNullOrEmpty()} hasTransUrl=${!s.TranscodingUrl.isNullOrEmpty()}")
+                    }
                     // 优先选 SupportsDirectStream=true 的源；否则取第一个；都没有则 null 走兜底
-                    val source = sources.firstOrNull { it.SupportsDirectStream == true }
+                    val source = sources.firstOrNull { it.SupportsDirectStream == true && !it.DirectStreamUrl.isNullOrEmpty() }
                         ?: sources.firstOrNull { it.SupportsDirectPlay == true }
                         ?: sources.firstOrNull()
                     val url = PlayerUtils.buildPlayUrl(server, itemId, source, token)
-                    AppLogger.i("Player built url=${url?.take(120)}...")
+                    AppLogger.i("Player built url=${url?.take(150)}...")
                     if (!url.isNullOrEmpty()) {
                         val title = source?.Name ?: "EmbyLite 播放器"
-                        _state.value = PlayerState.Ready(url, source, title)
+                        _state.value = PlayerState.Ready(url, source, title, itemId)
                     } else {
                         _state.value = PlayerState.Error("无法获取播放地址")
                     }
