@@ -1,0 +1,34 @@
+# Built application files
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Java class files
+*.class
+
+# Generated files
+bin/
+gen/
+out/
+build/
+
+# Gradle files
+.gradle/
+build/
+
+# Local configuration file (sdk path, etc)
+local.properties
+
+# Sign keystore
+*.keystore
+*.jks
+
+# Android Studio
+.idea/
+*.iml
+.captures/
+
+# OS
+.DS_Store
+Thumbs.db
