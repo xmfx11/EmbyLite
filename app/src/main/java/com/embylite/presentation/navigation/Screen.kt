@@ -28,6 +28,10 @@ sealed class Screen(val route: String) {
     object Player : Screen("player/{itemId}") {
         fun createRoute(itemId: String): String = "player/$itemId"
     }
+
+    // 设置子页面
+    object Update : Screen("update")
+    object Logs : Screen("logs")
 }
 
 // 简单 URL 编码（避免中文 name 破坏路由）

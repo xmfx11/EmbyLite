@@ -38,15 +38,10 @@ class DetailViewModel : ViewModel() {
             try {
                 val repo = repository ?: NetworkModule.createApiService(server).let { EmbyRepository(it) }
                     .also { repository = it }
-                // 用 getItems(parentId=itemId) 取单项，过滤出目标
-                val result = withContext(Dispatchers.IO) { repo.getItems(userId, itemId) }
-                result.onSuccess { items ->
-                    val target = items.firstOrNull { it.Id == itemId } ?: items.firstOrNull()
-                    if (target != null) {
-                        _state.value = DetailState.Success(target)
-                    } else {
-                        _state.value = DetailState.Error("未找到该项目")
-                    }
+                // 用独立接口 /Users/{userId}/Items/{itemId} 获取单项详情
+                val result = withContext(Dispatchers.IO) { repo.getItem(userId, itemId) }
+                result.onSuccess { item ->
+                    _state.value = DetailState.Success(item)
                 }.onFailure { _state.value = DetailState.Error(it.message ?: "加载失败") }
             } catch (e: Exception) {
                 _state.value = DetailState.Error(e.message ?: "加载失败")

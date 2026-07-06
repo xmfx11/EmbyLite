@@ -3,6 +3,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- OTA 安装 APK（Android 8+ 需要） -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:name=".EmbyApplication"
@@ -31,10 +33,26 @@
             android:theme="@style/Theme.EmbyLite" />
 
         <activity
+            android:name=".presentation.ui.settings.SubSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.EmbyLite" />
+
+        <activity
             android:name=".presentation.ui.player.PlayerActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout"
             android:supportsPictureInPicture="true"
             android:theme="@style/Theme.EmbyLite" />
+
+        <!-- OTA 安装 APK 需要 FileProvider -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

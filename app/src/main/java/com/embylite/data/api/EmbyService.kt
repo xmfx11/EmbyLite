@@ -1,5 +1,6 @@
 package com.embylite.data.api
 
+import com.embylite.data.model.EmbyItem
 import com.embylite.data.model.EmbyUser
 import com.embylite.data.model.ItemsResponse
 import com.embylite.data.model.LoginRequest
@@ -38,6 +39,13 @@ interface EmbyService {
         @Query("SortBy") sortBy: String = "SortName",
         @Query("SortOrder") sortOrder: String = "Ascending"
     ): Response<ItemsResponse>
+
+    // 获取单个项目详情（用于详情页，独立接口，不要用 ParentId 查子项）
+    @GET("Users/{userId}/Items/{itemId}")
+    suspend fun getItem(
+        @Path("userId") userId: String,
+        @Path("itemId") itemId: String
+    ): Response<EmbyItem>
 
     // 按标签筛选
     @GET("Users/{userId}/Items")

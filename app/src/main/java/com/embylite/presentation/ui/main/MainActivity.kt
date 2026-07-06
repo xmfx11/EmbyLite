@@ -127,7 +127,24 @@ fun MainScreen() {
 
             // 设置
             composable(Screen.Settings.route) {
-                SettingsScreen()
+                SettingsScreen(
+                    onUpdateClick = { navController.navigate(Screen.Update.route) },
+                    onLogsClick = { navController.navigate(Screen.Logs.route) }
+                )
+            }
+
+            // 检查更新
+            composable(Screen.Update.route) {
+                com.embylite.presentation.ui.update.UpdateScreen(
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            // 系统日志
+            composable(Screen.Logs.route) {
+                com.embylite.presentation.ui.settings.LogViewerScreen(
+                    onBack = { navController.popBackStack() }
+                )
             }
 
             // 媒体库内容列表
