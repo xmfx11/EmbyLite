@@ -76,9 +76,17 @@ interface EmbyService {
     ): Response<SearchResponse>
 
     // 播放信息（提取直链）
+    // 关键参数：让 Emby 返回可直接播放的 DirectStreamUrl / Container / 码率
     @POST("Items/{itemId}/PlaybackInfo")
     suspend fun getPlaybackInfo(
         @Path("itemId") itemId: String,
-        @Query("UserId") userId: String
+        @Query("UserId") userId: String,
+        @Query("IsPlayback") isPlayback: Boolean = true,
+        @Query("AutoOpenLiveStream") autoOpenLiveStream: Boolean = true,
+        @Query("EnableDirectPlay") enableDirectPlay: Boolean = true,
+        @Query("EnableDirectStream") enableDirectStream: Boolean = true,
+        @Query("EnableTranscoding") enableTranscoding: Boolean = true,
+        @Query("AllowVideoStreamCopy") allowVideoStreamCopy: Boolean = true,
+        @Query("AllowAudioStreamCopy") allowAudioStreamCopy: Boolean = true
     ): Response<PlaybackInfoResponse>
 }

@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -41,6 +42,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         // setContent 兜底，防止崩溃
         try {
             setContent { EmbyLiteTheme { MainScreen() } }
@@ -93,10 +95,12 @@ fun MainScreen() {
             }
         }
     ) { innerPadding ->
+        // 只应用底部 padding（底部导航栏 + 系统手势条），顶部不 padding
+        // 让详情页 Backdrop 能沉浸式延伸到状态栏后；各 Tab 页自带 TopAppBar 处理状态栏
         NavHost(
             navController = navController,
             startDestination = Screen.Home.route,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())
         ) {
             // 首页：媒体库入口
             composable(Screen.Home.route) {

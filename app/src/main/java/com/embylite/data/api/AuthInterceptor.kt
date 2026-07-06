@@ -15,7 +15,7 @@ class AuthInterceptor : Interceptor {
     companion object {
         // Emby 要求的客户端标识
         const val EMBY_AUTH =
-            "MediaBrowser Client=\"EmbyLite\", Device=\"Android\", DeviceId=\"EmbyLite-Android-001\", Version=\"0.02\""
+            "MediaBrowser Client=\"EmbyLite\", Device=\"Android\", DeviceId=\"EmbyLite-Android-001\", Version=\"0.03\""
     }
 
     override fun intercept(chain: Interceptor.Chain): Response {
